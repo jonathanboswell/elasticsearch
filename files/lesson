@@ -1,0 +1,383 @@
+Prequisites
+- Elasticsearch & Kibana installed and running locally
+- elasticsearch.yml configured correctly (more on this)
+- node/npm installed
+- create-react-app node package installed
+Resource: https://www.elastic.co/start
+
+##################################################################
+
+1st Hour: Crush the Cluster, Node, Index, and Shard
+
+Objects:
+- Configure a cluster
+- Run multiple nodes on 1 machine
+- Understand shards and shard replication
+- Perform CRUD for Indices and Objects
+- Understand Optimistic Concurrency Control (_version)
+- Perform GET to retrieve multiple objects in 1 request
+
+# Launch Elasticsearch
+$ cd ~/bonobos/elasticsearch
+$ bin/elasticsearch
+
+# Launch Kibana
+$ cd ~/bonobos/kibana
+$ bin/kibana
+
+# Open Kibana in the browser
+http://localhost:5601
+
+# We do: adjust memory allocation:
+// https://www.elastic.co/guide/en/elasticsearch/reference/6.6/disk-allocator.html
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.disk.watermark.low": "800mb",
+    "cluster.routing.allocation.disk.watermark.high": "500mb",
+    "cluster.routing.allocation.disk.watermark.flood_stage": "500mb",
+    "cluster.info.update.interval": "1m"
+  }
+}
+// 5.6
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster.routing.allocation.disk.threshold_enabled": true,
+    "cluster.routing.allocation.disk.watermark.low": "800m",
+    "cluster.routing.allocation.disk.watermark.high": "500m",
+    "cluster.info.update.interval": "5m"
+  }
+}
+
+# We do: Reset read only blocks:
+PUT .kibana/_settings
+{
+  "index": {
+    "blocks": {
+      "read_only_allow_delete": null
+    }
+  }
+}
+
+# We do: take a look at our cluster
+GET /_cluster/health
+
+# We do: change our cluster name
+- ctrl + c to stop Elasticsearch
+- Open ~/bonobos/elasticsearch/config/elasticsearch.yml
+- Change: cluster.name: bonobos
+- $ bin/elasticsearch to start
+- Note: may need to adjust memory for the new cluster
+
+# We do: add a 2nd node!
+- To create a 2nd node just run another instance of Elasticsearch on the same cluster.name
+/elasticsearch/config/elasticsearch.yml
+node.max_local_storage_nodes: 2
+- Did this add a 2nd node? Nope - just the ability
+- Open new terminal on same machine
+$ bin/elasticsearch
+GET /_cluster/health :)
+- How would you do this from multiple servers?
+- https://www.elastic.co/guide/en/elasticsearch/guide/current/important-configuration-changes.html#unicast
+
+# $10 to anyone who can draw a picture that accurately reflects the relationship between:
+# Concept: Cluster vs. Node vs. Shard vs. Index
+Cluster = a self-organizing collection of nodes that share data and workload
+Node = a running instance of Elasticsearch
+Master Node = A node in charge of managing cluster-wide changes. A master node is NOT involved in document-level changes
+- Nodes gossip
+- We can always talk to 1 node and know what all the other nodes *think*
+https://raw.githubusercontent.com/exo-addons/exo-es-search/master/doc/images/image_05.png
+
+# You do: Create an index
+- this will automatically create a node and two shards: 1 primary and 1 replica
+PUT /products
+{
+   "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 1
+   }
+}
+DELETE /products
+
+# You do: CRUD it up!
+- Create
+POST /products/_doc/1
+{
+  "category":"shirt",
+  "color":"black"
+}
+5.6
+POST /products/shirt/1 {
+  color:"black"
+}
+
+- Read
+GET /products/_search
+{
+  "query": {
+    "match": {
+      "color":"black"
+    }
+  }
+}
+
+- Update?
+POST /products/shirts/123
+{
+  "collar":true
+}
+- Nope - actually overwrites object...whoops!
+
+- Update?
+POST /products/shirts/123/_update
+{
+  "doc": {
+    "sleeves":"short"
+  }
+}
+- You betcha!
+
+- Delete
+DELETE /products/shirts/123
+- too easy!
+
+# We do: Let's play red light, yellow light, green light!
+# Watch me: break some shizz
+ctrl + c to stop the 2nd node
+node.max_local_storage_nodes: 1
+bin/elasticsearch to start 2nd node
+NOPE
+
+With 1 node running add a new index
+PUT /products
+{
+   "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 2
+   }
+}
+GET /_cluster/health
+YELLOW :(
+WHHHHYYYY??? (we'll get to this in a minute)
+
+PUT /products
+{
+   "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 1
+   }
+}
+NOPE
+
+# Watch me: fix some shizz
+DELETE /products
+PUT /products
+{
+   "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 1
+   }
+}
+Niiiiice - no wait...YELLOW!?
+Yep - elasticsearch wants multiple nodes yo!
+node.max_local_storage_nodes: 2
+$ bin/elasticsearch
+BOOM! GREEN!
+
+# Concept: WTF is Optimistic Concurrency Control? (and why do I care?)
+- https://www.elastic.co/guide/en/elasticsearch/guide/current/optimistic-concurrency-control.html
+- It's how our shards guarantee data isn't overwritten
+
+# Concept: Single GET for multiple objects?
+- Yep!
+- All:
+GET /products/shirts/_search
+- Some:
+GET /products/shirts/_mget
+{
+   "ids" : [ "123", "124" ]
+}
+
+##################################################################
+
+2nd Hour: Search This!
+
+Objectives:
+- Load JSON datasets from the console
+- Search features
+- Perform fuzzy searches
+- Perform aggregation queries
+- Perform searches based on proximity, wildcards and regular expressions
+- Understand how Elasticsearch uses Lucene and options for its configuration
+
+# Watch me: use _bulk
+- https://www.elastic.co/guide/en/elasticsearch/reference/6.6/docs-bulk.html
+// Create customers index
+PUT /customers
+{
+   "settings" : {
+      "number_of_shards" : 1,
+      "number_of_replicas" : 0
+   }
+}
+
+POST _bulk
+{ "index" : { "_index" : "customers", "_type" : "_doc"} }
+{ "name" : "Jonathan" }
+{ "index" : { "_index" : "customers", "_type" : "_doc"} }
+{ "name" : "Brian" }
+
+GET /customers/_search
+POST /customers/_doc/1/_update
+{
+  "doc": {
+    "isLoggedIn": true
+  }
+}
+DELETE /customers
+
+# Watch me: convert csv to json that elasticsearch can use
+- https://www.csvjson.com/csv2json
+
+# We do: load json dataset
+- https://www.elastic.co/guide/en/kibana/current/tutorial-load-dataset.html#_load_the_data_sets
+- Copy products.json in elasticsearch/data/
+$ curl -H 'Content-Type: application/x-ndjson' -XPOST 'localhost:9200/products/_bulk?pretty' --data-binary @data/products.json
+- What is ndjson? Newline Delimited JSON http://ndjson.org/
+
+// Search 1 field for 1 value
+GET /products/_search
+{
+  "query": {
+    "term": {"description": "shirt"}
+  }
+}
+
+// Search 1 field for 2 values
+GET /products/_search
+{
+  "query": {
+    "terms": {"description": ["shirt", "shirts"]}
+  }
+}
+
+// Sort & Size
+GET /products/_search
+{
+  "sort" : [
+    { "price" : {"order" : "desc"}}
+  ],
+  "query": {
+    "terms": {"name": ["shirt", "shirts"]}
+  }
+  "size": 14
+}
+
+// We do: size and multiple fields
+GET /products/_search
+{
+  "sort" : [
+    { "price" : {"order" : "desc"}}
+  ],
+  "query": {
+    "query_string": {
+      "fields" : ["name","description"],
+      "query" : "shirt"
+    }
+  },
+  "size": 14
+}
+
+# We do: Filter
+- https://www.elastic.co/guide/en/elasticsearch/reference/6.4/query-dsl-bool-query.html
+GET /products/_search
+{
+  "sort" : [
+    { "price" : {"order" : "desc"}}
+  ],
+  "query": {
+    "bool": {
+      "must": {
+        "query_string": {
+          "fields" : ["name","description"],
+          "query" : "shirt"
+        }
+      },
+      "must_not": {
+        "filter": {
+          "terms": {"name": "pant"}
+        }
+      }
+    }
+  },
+  "size": 14
+}
+
+# We do: Range
+- https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html
+- What is boost?
+GET /products/_search
+{
+  "sort" : [
+        { "price" : {"order" : "desc"}}
+    ],
+    "query": {
+        "range" : {
+            "price" : {
+                "lte" : 200
+            }
+        }
+    }
+}
+
+# We do: Fuzzy Search
+GET /products/_search
+{
+    "query": {
+       "fuzzy" : {"name" : "shorts" }
+    }
+}
+
+# We do: Fuzzy Search with Filtering
+GET /products/_search
+{
+  "query": {
+    "bool" : {
+      "must" : {
+        "fuzzy" : { "name" : "shorts" }
+      }
+    }
+  }
+}
+
+- Notice how this still catches "short sleeve shirts"
+
+# Mappings
+https://www.elastic.co/guide/en/elasticsearch/reference/current/tune-for-search-speed.html
+
+
+
+
+
+We will:
+- Bulk import sample data
+- Perform index and customer level searches
+- Build aggregation metrics (formerly facets)
+- Query indices, objects and aggregations using the Search API
+- Build compound queries using Query DSL
+
+##################################################################
+
+3rd Hour: Complete the Auto-Complete
+
+Objectives:
+- Apply the concepts learned in the first 2 hours
+- https://blog.bitsrc.io/how-to-build-an-autocomplete-widget-with-react-and-elastic-search-dd4f846f784
+
+We will:
+- Launch a React application
+- Load data into Elasticsearch
+- Connect our React application to Elasticsearch
+- Build a product search box with auto-complete functionality

@@ -1,0 +1,6 @@
+Questions:
+- Why use Elasticsearch instead of a database?
+- How is Elasticsearch different than GraphQL?
+- What is the difference between and Index and a Document?
+- Why does a search on "term": {"name":"shirts"} not return shirts?!
+- Favicon :)
