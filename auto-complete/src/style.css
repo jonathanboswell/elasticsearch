@@ -1,0 +1,80 @@
+h1 {
+  text-transform: uppercase;
+  color: white;
+  font-weight: bold;
+}
+.App {
+  font-family: sans-serif;
+  text-align: center;
+}
+#logo {
+  max-height: 48px;
+}
+.cool-dude {
+  background:  url('./cool-dude.jpg') top center no-repeat;
+  background-size: cover;
+  display: grid;
+  height: 100vh;
+  padding-top: 300px;
+}
+
+.react-autosuggest__container {
+  position: relative;
+  /* display: inline-block; */
+}
+
+.react-autosuggest__input::placeholder {
+  color: #777;
+  opacity: 1;
+}
+
+.react-autosuggest__input--focused {
+  outline: none;
+}
+
+.react-autosuggest__input--open {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.react-autosuggest__suggestions-list {
+  margin: 0;
+  position: absolute;
+  padding: 0;
+  background-color: #fff;
+  list-style-type: none;
+  width: 100%;
+  border: 1px solid #eee;
+  font-size: 16px;
+}
+
+.react-autosuggest__suggestion {
+  cursor: pointer;
+  padding: 10px 10px 0 10px;
+  border-bottom: 1px solid #eee;
+  width: 100%;
+  white-space: nowrap;
+}
+
+.react-autosuggest__suggestion--highlighted {
+  background-color: #eee;
+}
+
+.result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.shortCode {
+  background-color: #4696ec;
+  color: #fff;
+  padding: 4px;
+  border-radius: 2px;
+}
+
+.highlight {
+  background-color: yellow;
+  padding: 4px;
+  border-radius: 2px;
+}
